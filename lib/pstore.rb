@@ -621,27 +621,22 @@ class PStore
   # All exceptions are propagated.
   #
   def open_and_lock_file(filename, read_only)
-    filename = File.path(filename)
-    loop do
-      if read_only
-        begin
-          file = File.new(filename, **RD_ACCESS)
-        rescue Errno::ENOENT
-          return nil
-        end
-      else
-        file = File.new(filename, **RDWR_ACCESS)
-      end
-      current = false
+    if read_only
       begin
-        file.flock(read_only ? File::LOCK_SH : File::LOCK_EX)
-        # An atomic save may have replaced the file while this lock was pending.
-        current = File.identical?(file, filename)
-        return file if current
-      ensure
-        file.close unless current
+        file = File.new(filename, **RD_ACCESS)
+      rescue Errno::ENOENT
+        return nil
       end
+    else
+      file = File.new(filename, **RDWR_ACCESS)
     end
+    begin
+      file.flock(read_only ? File::LOCK_SH : File::LOCK_EX)
+    rescue Exception
+      file.close
+      raise
+    end
+    file
   end
 
   # Load the given PStore file.
